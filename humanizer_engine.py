@@ -1,20 +1,43 @@
 import random
 import re
+import string
 import json
-from pathlib import Path
+import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-class Vocabulary:
-    """Clean vocabulary manager - loads from external files"""
+class StealthHumanizer:
     def __init__(self):
-        self.thesaurus = {}
-        self.frequent_words = set()
-        self.slang_words = set()
-        self.stop_words = self._get_stop_words()
-        self._load_vocabulary()
-    
-    def _get_stop_words(self):
-        """Common words that should never be replaced"""
-        return {
+        print("🔄 Loading T5 model...")
+        self.model_name = "t5-base"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
+        print("✅ Model loaded!")
+        
+        # ==================== LOAD MASSIVE LIBRARY ====================
+        print("📚 Loading massive vocabulary library...")
+        try:
+            with open('data/unified_vocabulary.json', 'r') as f:
+                self.vocab_data = json.load(f)
+                self.thesaurus = self.vocab_data.get('thesaurus', {})
+                self.frequent_words = set(self.vocab_data.get('frequent_words', []))
+                print(f"✅ Loaded {len(self.thesaurus):,} synonym entries")
+                print(f"📊 Sample synonyms: {list(self.thesaurus.items())[:3]}")
+        except Exception as e:
+            print(f"⚠️ Error loading library: {e}")
+            self.thesaurus = {}
+            self.frequent_words = set()
+        # =============================================================
+        
+        # Contractions
+        self.contractions = {
+            "do not": "don't", "cannot": "can't", "will not": "won't",
+            "i am": "i'm", "you are": "you're", "it is": "it's",
+            "that is": "that's", "are not": "aren't", "is not": "isn't",
+            "was not": "wasn't", "were not": "weren't", "have not": "haven't"
+        }
+        
+        # Stop words
+        self.stop_words = {
             'the', 'a', 'an', 'and', 'or', 'but', 'for', 'nor', 'on', 'at', 
             'to', 'by', 'in', 'of', 'with', 'without', 'as',
             'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her',
@@ -23,77 +46,35 @@ class Vocabulary:
             'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'
         }
     
-    def _load_vocabulary(self):
-        """Load vocabulary from external JSON files"""
-        try:
-            with open('data/unified_vocabulary.json', 'r') as f:
-                data = json.load(f)
-                self.thesaurus = data.get('thesaurus', {})
-                self.frequent_words = set(data.get('frequent_words', []))
-                self.slang_words = set(data.get('slang_words', []))
-                print(f"✅ Loaded {len(self.thesaurus)} synonyms, {len(self.frequent_words)} frequent words")
-        except FileNotFoundError:
-            print("⚠️ Vocabulary file not found, using fallback")
-            self._load_fallback()
-    
-    def _load_fallback(self):
-        """Fallback vocabulary"""
-        self.thesaurus = {
-            'good': ['great', 'excellent', 'fine', 'positive'],
-            'important': ['crucial', 'vital', 'essential', 'key'],
-            'help': ['assist', 'support', 'aid', 'facilitate'],
-            'use': ['utilize', 'employ', 'apply', 'implement'],
-            'show': ['demonstrate', 'indicate', 'reveal', 'display'],
-            'make': ['create', 'produce', 'generate', 'construct'],
-            'get': ['obtain', 'acquire', 'secure', 'gather'],
-            'think': ['believe', 'consider', 'reckon', 'suppose'],
-            'need': ['require', 'demand', 'necessitate'],
-            'know': ['understand', 'comprehend', 'grasp', 'realize']
-        }
-    
-    def get_synonym(self, word):
-        """Get a clean synonym for a word"""
+    def _get_synonym_from_library(self, word):
+        """Get synonym from the massive library"""
         word_lower = word.lower()
-        if word_lower in self.thesaurus and self.thesaurus[word_lower]:
+        
+        # Check if word exists in thesaurus
+        if word_lower in self.thesaurus:
             synonyms = self.thesaurus[word_lower]
             if isinstance(synonyms, list) and synonyms:
+                # Prefer synonyms that are frequent words (more natural)
+                frequent_synonyms = [s for s in synonyms if s in self.frequent_words]
+                if frequent_synonyms:
+                    return random.choice(frequent_synonyms)
                 return random.choice(synonyms)
+        
         return word
-
-
-class StealthHumanizer:
-    """Clean, modular humanization engine"""
-    def __init__(self):
-        self.vocab = Vocabulary()
-        self.contractions = self._get_contractions()
-        print("✅ Humanizer Engine Ready")
     
-    def _get_contractions(self):
-        """Clean contractions"""
-        return {
-            "do not": "don't", "cannot": "can't", "will not": "won't",
-            "i am": "i'm", "you are": "you're", "it is": "it's",
-            "that is": "that's", "are not": "aren't", "is not": "isn't",
-            "was not": "wasn't", "were not": "weren't", "have not": "haven't"
-        }
-    
-    def _is_content_word(self, word):
-        """Check if a word should be replaced"""
-        clean = word.strip(string.punctuation).lower()
-        return (clean and 
-                len(clean) > 3 and 
-                clean not in self.vocab.stop_words)
-    
-    def _apply_synonyms(self, text, rate=0.30):
-        """Apply synonyms with controlled rate"""
+    def _apply_synonyms_from_library(self, text, rate=0.35):
+        """Apply synonyms from the massive library"""
         words = text.split()
         new_words = []
         
         for word in words:
-            if self._is_content_word(word):
+            # Check if this is a content word
+            clean = word.strip(string.punctuation)
+            if clean and len(clean) > 3 and clean not in self.stop_words:
+                # Apply synonym with given rate
                 if random.random() < rate:
-                    syn = self.vocab.get_synonym(word)
-                    if syn != word.lower():
+                    syn = self._get_synonym_from_library(clean)
+                    if syn != clean.lower():
                         # Preserve case and punctuation
                         if word[0].isupper():
                             syn = syn.capitalize()
@@ -105,35 +86,85 @@ class StealthHumanizer:
         
         return ' '.join(new_words)
     
+    def _paraphrase_with_t5(self, text):
+        """Paraphrase using T5"""
+        try:
+            if len(text) > 500:
+                text = text[:500]
+            
+            # Try different prompts
+            prompts = [f"paraphrase: {text}", f"rewrite: {text}"]
+            
+            for prompt in prompts:
+                inputs = self.tokenizer(
+                    prompt,
+                    return_tensors="pt",
+                    max_length=512,
+                    truncation=True,
+                    padding=True
+                )
+                
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_length=400,
+                        min_length=100,
+                        num_beams=6,
+                        temperature=0.8,
+                        top_p=0.95,
+                        do_sample=True,
+                        early_stopping=True,
+                        repetition_penalty=1.1,
+                        no_repeat_ngram_size=3
+                    )
+                
+                result = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                result = result.replace("paraphrase: ", "").replace("rewrite: ", "")
+                
+                if len(result) > 50 and result != text:
+                    return result
+            
+            return text
+        except Exception as e:
+            print(f"⚠️ T5 error: {e}")
+            return text
+    
     def _apply_contractions(self, text, rate=0.25):
-        """Apply contractions naturally"""
+        """Apply contractions"""
         result = text
         for formal, casual in self.contractions.items():
             if random.random() < rate:
                 result = result.replace(formal, casual)
         return result
     
-    def _clean_text(self, text):
-        """Clean up the text"""
-        text = re.sub(r'\s+', ' ', text).strip()
-        text = re.sub(r'\.{2,}', '.', text)
-        text = re.sub(r',\s*,', ',', text)
-        if text and text[-1] not in '.!?':
-            text += '.'
-        return text
-    
     def humanize(self, text, style="natural"):
-        """Main humanization pipeline"""
+        """Main humanization pipeline - USING MASSIVE LIBRARY"""
         if not text or len(text) < 5:
             return text
         
         try:
-            # Apply transformations
-            result = self._apply_synonyms(text, rate=0.30)
-            result = self._apply_contractions(result, rate=0.25)
-            result = self._clean_text(result)
+            # Step 1: T5 Paraphrase
+            result = self._paraphrase_with_t5(text)
             
-            # Safety check
+            # Step 2: Apply synonyms from the MASSIVE LIBRARY
+            result = self._apply_synonyms_from_library(result, rate=0.35)
+            
+            # Step 3: Apply contractions
+            result = self._apply_contractions(result, rate=0.25)
+            
+            # Step 4: Clean up
+            result = re.sub(r'\s+', ' ', result).strip()
+            result = re.sub(r'\.{2,}', '.', result)
+            result = re.sub(r',\s*,', ',', result)
+            
+            if result and result[-1] not in '.!?':
+                result += '.'
+            
+            # If T5 didn't change anything, use more synonyms
+            if result == text or len(result) < 20:
+                result = self._apply_synonyms_from_library(text, rate=0.50)
+                result = self._apply_contractions(result, rate=0.30)
+            
             if not isinstance(result, str) or len(result) < 10:
                 return text
             
@@ -147,7 +178,6 @@ class StealthHumanizer:
             return text
     
     def get_stealth_score(self, text):
-        """Calculate human-like score"""
         if not text:
             return 0
         
