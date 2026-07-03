@@ -1,12 +1,37 @@
 import random
 import re
 import string
-from nltk.corpus import wordnet
-import nltk
+import json
+import os
 
 class StealthHumanizer:
     def __init__(self):
-        print("✅ Advanced Sentence Restructuring Engine Ready")
+        print("✅ V10.0 - Massive Database Engine")
+        
+        # Load massive synonym database
+        try:
+            with open('data/app_synonyms.json', 'r') as f:
+                self.synonyms = json.load(f)
+            print(f"   📚 Loaded {len(self.synonyms):,} synonym entries")
+        except:
+            print("   ⚠️ No synonym database found")
+            self.synonyms = {}
+        
+        # Load frequent words
+        try:
+            with open('data/word_frequency.txt', 'r') as f:
+                self.frequent_words = set([w.strip() for w in f.read().split('\n') if w.strip()])
+            print(f"   📊 Loaded {len(self.frequent_words):,} frequent words")
+        except:
+            self.frequent_words = set()
+        
+        # Load slang
+        try:
+            with open('data/slang_words.json', 'r') as f:
+                self.slang_words = set(json.load(f))
+            print(f"   💬 Loaded {len(self.slang_words)} slang words")
+        except:
+            self.slang_words = set()
         
         # Contractions
         self.contractions = {
@@ -14,206 +39,125 @@ class StealthHumanizer:
             "i am": "i'm", "you are": "you're", "it is": "it's",
             "that is": "that's", "are not": "aren't", "is not": "isn't",
             "was not": "wasn't", "were not": "weren't", "have not": "haven't",
-            "would not": "wouldn't", "should not": "shouldn't", "could not": "couldn't"
+            "would not": "wouldn't", "should not": "shouldn't", "could not": "couldn't",
+            "does not": "doesn't", "has not": "hasn't", "had not": "hadn't"
         }
         
         # Fillers
         self.fillers = [
             "actually", "basically", "honestly", "you know", 
             "well", "so", "like", "literally", "seriously",
-            "in my opinion", "to be honest", "I mean"
+            "in my opinion", "to be honest", "I mean",
+            "the thing is", "you see", "I suppose"
         ]
         
-        # Advanced synonyms
-        self.synonyms = {
-            'good': ['excellent', 'superior', 'positive', 'admirable', 'fine'],
-            'great': ['exceptional', 'remarkable', 'outstanding', 'impressive'],
-            'important': ['crucial', 'vital', 'essential', 'critical', 'significant'],
-            'help': ['assist', 'support', 'aid', 'facilitate', 'guide'],
-            'use': ['utilize', 'employ', 'apply', 'implement', 'leverage'],
-            'show': ['demonstrate', 'indicate', 'reveal', 'display', 'exhibit'],
-            'make': ['create', 'produce', 'generate', 'construct', 'develop'],
-            'get': ['obtain', 'acquire', 'secure', 'gather', 'receive'],
-            'think': ['believe', 'consider', 'reckon', 'suppose', 'assume'],
-            'need': ['require', 'demand', 'necessitate', 'call for'],
-            'know': ['understand', 'comprehend', 'grasp', 'realize', 'perceive'],
-            'say': ['state', 'mention', 'remark', 'comment', 'declare'],
-            'see': ['observe', 'notice', 'spot', 'witness', 'perceive'],
-            'people': ['individuals', 'folks', 'citizens', 'humans', 'persons'],
-            'thing': ['item', 'object', 'element', 'aspect', 'factor'],
-            'way': ['method', 'approach', 'technique', 'manner', 'process'],
-            'time': ['period', 'duration', 'moment', 'era', 'phase'],
-            'life': ['existence', 'being', 'living', 'survival', 'lifespan'],
-            'foundation': ['basis', 'base', 'cornerstone', 'bedrock', 'root'],
-            'respect': ['esteem', 'regard', 'admiration', 'appreciation', 'reverence'],
-            'kindness': ['compassion', 'gentleness', 'benevolence', 'warmth', 'charity'],
-            'consideration': ['thoughtfulness', 'attentiveness', 'courtesy', 'care', 'concern'],
-            'habits': ['practices', 'customs', 'routines', 'patterns', 'traditions'],
-            'society': ['community', 'civilization', 'culture', 'nation', 'population'],
-            'behavior': ['conduct', 'actions', 'demeanor', 'manners', 'etiquette'],
-            'character': ['nature', 'personality', 'temperament', 'disposition', 'quality'],
-            'values': ['principles', 'ethics', 'morals', 'ideals', 'standards']
+        # Stop words
+        self.stop_words = {
+            'the', 'a', 'an', 'and', 'or', 'but', 'for', 'nor', 'on', 'at', 
+            'to', 'by', 'in', 'of', 'with', 'without', 'as',
+            'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her',
+            'us', 'them', 'my', 'your', 'his', 'her', 'our', 'their',
+            'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have',
+            'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
+            'may', 'might', 'must', 'shall', 'can', 'that', 'which', 'who',
+            'whom', 'whose', 'what', 'when', 'where', 'why', 'how'
         }
     
     def _get_synonym(self, word):
-        """Intelligent synonym selection"""
+        """Get synonym from massive database with intelligence"""
         word_lower = word.lower()
+        
+        # Check if we have synonyms for this word
         if word_lower in self.synonyms:
-            return random.choice(self.synonyms[word_lower])
-        try:
-            synsets = wordnet.synsets(word_lower)
-            if synsets:
-                for syn in synsets[:3]:
-                    lemmas = syn.lemmas()
-                    if lemmas:
-                        for lemma in lemmas[:3]:
-                            lemma_name = lemma.name().replace('_', ' ')
-                            if (lemma_name != word_lower and 
-                                len(lemma_name) > 2 and
-                                ' ' not in lemma_name):
-                                return lemma_name
-        except:
-            pass
+            synonyms = self.synonyms[word_lower]
+            if isinstance(synonyms, list) and len(synonyms) > 0:
+                # Prefer synonyms that are frequent words (more natural)
+                frequent_synonyms = [s for s in synonyms if s in self.frequent_words]
+                if frequent_synonyms:
+                    return random.choice(frequent_synonyms)
+                return random.choice(synonyms)
+        
         return word
     
     def _convert_to_passive(self, sentence):
-        """ACTIVE → PASSIVE voice conversion"""
+        """Convert active to passive voice"""
         words = sentence.split()
         if len(words) < 4:
             return sentence
         
-        # Try to find subject-verb-object pattern
+        # Look for subject-verb-object pattern
         for i in range(len(words) - 2):
-            # Common subject indicators
             if words[i].lower() in ['the', 'a', 'an', 'it', 'they', 'we', 'he', 'she']:
-                # Check if next word is a verb (ends with s or ed)
                 if words[i+1].endswith('s') or words[i+1].endswith('ed'):
                     subject = ' '.join(words[:i+1])
                     verb = words[i+1]
                     obj = ' '.join(words[i+2:])
                     
-                    # Create passive voice: "Object is verb-ed by Subject"
                     if verb.endswith('s'):
-                        verb = verb[:-1] + 'ed'  # makes -> made
+                        verb = verb[:-1] + 'ed'
                     elif verb.endswith('ed'):
                         verb = verb
                     else:
                         verb = verb + 'ed'
                     
-                    # Clean up the object (remove the from object if present)
                     obj_words = obj.split()
                     if obj_words and obj_words[0].lower() == 'the':
                         obj = ' '.join(obj_words[1:])
                     
                     passive = f"{obj} is {verb} by {subject}"
-                    # If the result is reasonable, return it
                     if len(passive.split()) > 3 and len(passive) < len(sentence) * 1.5:
                         return passive
         
         return sentence
     
-    def _convert_to_active(self, sentence):
-        """PASSIVE → ACTIVE voice conversion"""
-        if 'by' in sentence.lower() and (' is ' in sentence or ' are ' in sentence or ' was ' in sentence or ' were ' in sentence):
-            parts = sentence.split(' by ')
-            if len(parts) == 2:
-                subject = parts[1].strip()
-                obj_verb = parts[0].strip()
-                
-                # Remove the 'is/are/was/were'
-                for aux in [' is ', ' are ', ' was ', ' were ']:
-                    if aux in obj_verb:
-                        obj_verb = obj_verb.replace(aux, ' ')
-                        verb_parts = obj_verb.split()
-                        if len(verb_parts) > 0:
-                            verb = verb_parts[0].strip()
-                            # Remove 'ed' from verb if present
-                            if verb.endswith('ed'):
-                                verb = verb[:-2]
-                            obj = ' '.join(verb_parts[1:]) if len(verb_parts) > 1 else ''
-                            
-                            if obj:
-                                active = f"{subject} {verb} {obj}"
-                                if len(active.split()) > 3:
-                                    return active
-        
-        return sentence
-    
-    def _split_join_sentences(self, sentences):
-        """Intelligently split or combine sentences"""
-        if len(sentences) < 2:
-            return sentences
-        
-        new_sentences = []
-        i = 0
-        while i < len(sentences):
-            # If sentence is long (>15 words), split it
-            if len(sentences[i].split()) > 15 and random.random() < 0.4:
-                words = sentences[i].split()
-                mid = len(words) // 2
-                # Find a natural split point
-                split_at = mid
-                for j in range(mid, min(mid + 5, len(words) - 1)):
-                    if words[j] in ['and', 'but', 'or', 'however', 'therefore']:
-                        split_at = j
-                        break
-                
-                if split_at < len(words) - 1:
-                    part1 = ' '.join(words[:split_at])
-                    part2 = ' '.join(words[split_at:])
-                    new_sentences.append(part1)
-                    new_sentences.append(part2)
-                    i += 1
-                    continue
-            
-            # If sentence is short (<5 words) and next exists, combine
-            elif len(sentences[i].split()) < 5 and i < len(sentences) - 1 and random.random() < 0.3:
-                combined = sentences[i] + ' and ' + sentences[i+1].lower()
-                new_sentences.append(combined)
-                i += 2
-                continue
-            
-            new_sentences.append(sentences[i])
-            i += 1
-        
-        return new_sentences
-    
-    def _add_voice_variation(self, sentence):
-        """Randomly apply active/passive conversion"""
-        # 40% chance of voice conversion
-        if random.random() < 0.40:
-            # Check if sentence is passive -> convert to active
-            if 'by' in sentence and ('is' in sentence or 'are' in sentence or 'was' in sentence or 'were' in sentence):
-                return self._convert_to_active(sentence)
-            # Otherwise convert to passive
+    def _apply_advanced_restructuring(self, sentence):
+        """Apply multiple restructuring techniques"""
+        # 35% chance of voice conversion
+        if random.random() < 0.35:
+            if 'by' in sentence and any(aux in sentence for aux in [' is ', ' are ', ' was ', ' were ']):
+                # Passive to active
+                parts = sentence.split(' by ')
+                if len(parts) == 2:
+                    subject = parts[1].strip()
+                    obj_verb = parts[0].strip()
+                    for aux in [' is ', ' are ', ' was ', ' were ']:
+                        if aux in obj_verb:
+                            obj_verb = obj_verb.replace(aux, ' ')
+                            verb_parts = obj_verb.split()
+                            if len(verb_parts) > 0:
+                                verb = verb_parts[0].strip()
+                                if verb.endswith('ed'):
+                                    verb = verb[:-2]
+                                obj = ' '.join(verb_parts[1:]) if len(verb_parts) > 1 else ''
+                                if obj:
+                                    return f"{subject} {verb} {obj}"
             else:
+                # Active to passive
                 return self._convert_to_passive(sentence)
         return sentence
     
     def humanize(self, text, style="natural"):
-        """Advanced humanization with real restructuring"""
+        """Advanced humanization with massive database"""
         if not text or len(text) < 5:
             return text
         
         try:
-            # Step 1: Split into sentences
+            # Split into sentences
             sentences = re.split(r'(?<=[.!?])\s+', text)
-            
-            # Step 2: Split/combine sentences
-            sentences = self._split_join_sentences(sentences)
-            
-            # Step 3: Process each sentence
             new_sentences = []
+            
             for sentence in sentences:
-                # Apply synonyms
                 words = sentence.split()
                 new_words = []
+                
+                # Apply synonyms with intelligence
                 for word in words:
                     clean = word.strip(string.punctuation)
-                    if clean and len(clean) > 3:
-                        if random.random() < 0.30:
+                    if clean and len(clean) > 3 and clean not in self.stop_words:
+                        # 35% chance of replacement
+                        if random.random() < 0.35:
                             syn = self._get_synonym(clean)
-                            if syn != clean:
+                            if syn != clean and syn:
                                 if word[0].isupper():
                                     syn = syn.capitalize()
                                 if word[-1] in string.punctuation:
@@ -224,30 +168,24 @@ class StealthHumanizer:
                 
                 new_sentence = ' '.join(new_words)
                 
-                # Apply voice conversion
+                # Apply advanced restructuring
                 if len(new_sentence.split()) > 5:
-                    new_sentence = self._add_voice_variation(new_sentence)
+                    new_sentence = self._apply_advanced_restructuring(new_sentence)
                 
                 # Apply contractions
                 for formal, casual in self.contractions.items():
-                    if random.random() < 0.25:
+                    if random.random() < 0.20:
                         new_sentence = new_sentence.replace(formal, casual)
                 
                 new_sentences.append(new_sentence)
             
-            # Step 4: Add transitions and fillers
+            # Add transitions and fillers
             if style != "professional" and len(new_sentences) > 2:
-                transitions = [
-                    ('However,', 0.3), ('Therefore,', 0.2), 
-                    ('Furthermore,', 0.2), ('Moreover,', 0.15), 
-                    ('On the other hand,', 0.15)
-                ]
-                
+                transitions = ['However,', 'Therefore,', 'Furthermore,', 'Moreover,', 'On the other hand,']
                 for i in range(1, len(new_sentences)):
-                    if len(new_sentences[i].split()) > 6:
-                        if random.random() < 0.25:
-                            transition, _ = random.choice(transitions)
-                            new_sentences[i] = transition + ' ' + new_sentences[i][0].lower() + new_sentences[i][1:]
+                    if len(new_sentences[i].split()) > 6 and random.random() < 0.2:
+                        transition = random.choice(transitions)
+                        new_sentences[i] = transition + ' ' + new_sentences[i][0].lower() + new_sentences[i][1:]
                 
                 # Add fillers
                 for _ in range(random.randint(1, 2)):
@@ -259,7 +197,7 @@ class StealthHumanizer:
                         words.insert(insert_pos, filler + ',')
                         new_sentences[idx] = ' '.join(words)
             
-            # Step 5: Final cleanup
+            # Final cleanup
             result = '. '.join(new_sentences)
             result = re.sub(r'\s+', ' ', result).strip()
             result = re.sub(r'\.{2,}', '.', result)
@@ -268,7 +206,7 @@ class StealthHumanizer:
             if result and result[-1] not in '.!?':
                 result += '.'
             
-            # Safety check
+            # Safety checks
             if not isinstance(result, str) or len(result) < 10:
                 return text
             
@@ -291,11 +229,15 @@ class StealthHumanizer:
         if len(words) == 0:
             return 50
         
+        # Contractions
         if any("'t" in word or "'m" in word for word in words):
             score += 10
+        
+        # Vocabulary diversity
         if len(set(words)) / len(words) > 0.5:
             score += 10
         
+        # Sentence variation
         sentences = [s for s in text.split(". ") if s]
         if len(sentences) > 1:
             lengths = [len(s.split()) for s in sentences]
