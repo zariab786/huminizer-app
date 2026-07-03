@@ -1,8 +1,8 @@
 import streamlit as st
-from humanizer_engine import StealthHumanizer
+from humanizer_engine import RewriterEngine
 import time
 
-st.set_page_config(page_title="Stealth Humanizer", page_icon="🕵️", layout="wide")
+st.set_page_config(page_title="Stealth Rewriter", page_icon="✍️", layout="wide")
 
 st.markdown("""
 <style>
@@ -12,8 +12,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<h1 class="main-header">🕵️ Stealth Humanizer</h1>', unsafe_allow_html=True)
-st.markdown("*Bypass AI detectors like GPTZero, Turnitin & Originality.ai*")
+st.markdown('<h1 class="main-header">✍️ Stealth Rewriter</h1>', unsafe_allow_html=True)
+st.markdown("*Rewrite sentences while preserving meaning*")
 
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -21,44 +21,44 @@ with st.sidebar:
     st.markdown("---")
     st.info("""
     **How it works:**
-    1. Paraphrases text using T5
-    2. Adds human-like imperfections
-    3. Injects natural fillers
-    4. Adjusts sentence structure
-    5. Bypasses AI detectors
+    1. Rewrites sentences (not just synonyms)
+    2. Changes sentence structure
+    3. Active ↔ Passive voice
+    4. Cleft sentences
+    5. Fronting and inversion
     """)
 
 @st.cache_resource
-def load_humanizer():
-    with st.spinner("🔄 Loading AI models... (2-3 minutes)"):
-        return StealthHumanizer()
+def load_rewriter():
+    return RewriterEngine()
 
 try:
-    humanizer = load_humanizer()
-    st.success("✅ Models loaded!")
+    rewriter = load_rewriter()
+    st.success("✅ Rewriter ready!")
 except Exception as e:
     st.error(f"❌ Error: {e}")
     st.stop()
 
-input_text = st.text_area("📝 Enter text to humanize", height=200,
-                          placeholder="Paste your AI-generated text here...")
+input_text = st.text_area("📝 Enter text to rewrite", height=200,
+                          placeholder="Paste your text here...")
 
-if st.button("🔄 Humanize", type="primary") and input_text:
-    with st.spinner("Processing..."):
+if st.button("✍️ Rewrite", type="primary") and input_text:
+    with st.spinner("Rewriting..."):
         start = time.time()
-        result = humanizer.humanize(input_text, style=style.lower())
-        score = humanizer.get_stealth_score(result)
+        result = rewriter.rewrite(input_text, style=style.lower())
+        score = rewriter.get_score(result)
+        elapsed = time.time() - start
         
-        st.success(f"✅ Done in {time.time()-start:.1f}s!")
+        st.success(f"✅ Rewritten in {elapsed:.1f}s!")
         
         col1, col2, col3 = st.columns(3)
-        with col1: st.metric("📊 Stealth Score", f"{score}%")
+        with col1: st.metric("📊 Rewrite Score", f"{score}%")
         with col2: st.metric("📝 Original Words", len(input_text.split()))
-        with col3: st.metric("✍️ Humanized Words", len(result.split()))
+        with col3: st.metric("✍️ New Words", len(result.split()))
         
-        tab1, tab2 = st.tabs(["📄 Humanized Text", "📋 Original"])
+        tab1, tab2 = st.tabs(["✍️ Rewritten Text", "📋 Original"])
         with tab1:
-            st.text_area("Humanized Output", result, height=150)
-            st.download_button("📥 Download TXT", result, file_name="humanized.txt")
+            st.text_area("Rewritten Output", result, height=150)
+            st.download_button("📥 Download", result, file_name="rewritten.txt")
         with tab2:
             st.text_area("Original Text", input_text, height=150, disabled=True)
