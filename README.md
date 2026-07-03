@@ -11,8 +11,5 @@
 2. `pip install -r requirements.txt`
 3. `streamlit run app.py`
 
-## How It Works
-- Uses T5/BART for paraphrasing
-- Back-translation for natural phrasing
-- Burstiness & perplexity adjustment
-- Contraction/filler injection
+## Live Demo
+[https://zariab786-huminizer-app.streamlit.app](https://zariab786-huminizer-app.streamlit.app)
