@@ -3,11 +3,10 @@ import re
 import string
 from nltk.corpus import wordnet
 import nltk
-from nltk.tokenize import sent_tokenize
 
 class StealthHumanizer:
     def __init__(self):
-        print("✅ Advanced Humanizer Ready")
+        print("✅ Advanced Sentence Restructuring Engine Ready")
         
         # Contractions
         self.contractions = {
@@ -18,17 +17,16 @@ class StealthHumanizer:
             "would not": "wouldn't", "should not": "shouldn't", "could not": "couldn't"
         }
         
-        # Rich fillers
+        # Fillers
         self.fillers = [
             "actually", "basically", "honestly", "you know", 
             "well", "so", "like", "literally", "seriously",
-            "in my opinion", "to be honest", "I mean",
-            "the thing is", "you see", "I suppose"
+            "in my opinion", "to be honest", "I mean"
         ]
         
         # Advanced synonyms
-        self.advanced_synonyms = {
-            'good': ['excellent', 'superior', 'quality', 'positive', 'admirable'],
+        self.synonyms = {
+            'good': ['excellent', 'superior', 'positive', 'admirable', 'fine'],
             'great': ['exceptional', 'remarkable', 'outstanding', 'impressive'],
             'important': ['crucial', 'vital', 'essential', 'critical', 'significant'],
             'help': ['assist', 'support', 'aid', 'facilitate', 'guide'],
@@ -46,27 +44,25 @@ class StealthHumanizer:
             'way': ['method', 'approach', 'technique', 'manner', 'process'],
             'time': ['period', 'duration', 'moment', 'era', 'phase'],
             'life': ['existence', 'being', 'living', 'survival', 'lifespan'],
-            'world': ['planet', 'earth', 'globe', 'universe', 'realm'],
             'foundation': ['basis', 'base', 'cornerstone', 'bedrock', 'root'],
             'respect': ['esteem', 'regard', 'admiration', 'appreciation', 'reverence'],
             'kindness': ['compassion', 'gentleness', 'benevolence', 'warmth', 'charity'],
             'consideration': ['thoughtfulness', 'attentiveness', 'courtesy', 'care', 'concern'],
-            'habits': ['practices', 'customs', 'routines', 'patterns', 'traditions']
+            'habits': ['practices', 'customs', 'routines', 'patterns', 'traditions'],
+            'society': ['community', 'civilization', 'culture', 'nation', 'population'],
+            'behavior': ['conduct', 'actions', 'demeanor', 'manners', 'etiquette'],
+            'character': ['nature', 'personality', 'temperament', 'disposition', 'quality'],
+            'values': ['principles', 'ethics', 'morals', 'ideals', 'standards']
         }
     
     def _get_synonym(self, word):
         """Intelligent synonym selection"""
         word_lower = word.lower()
-        
-        # Check advanced synonyms
-        if word_lower in self.advanced_synonyms:
-            return random.choice(self.advanced_synonyms[word_lower])
-        
-        # Try WordNet
+        if word_lower in self.synonyms:
+            return random.choice(self.synonyms[word_lower])
         try:
             synsets = wordnet.synsets(word_lower)
             if synsets:
-                # Get the most common synonym
                 for syn in synsets[:3]:
                     lemmas = syn.lemmas()
                     if lemmas:
@@ -78,115 +74,144 @@ class StealthHumanizer:
                                 return lemma_name
         except:
             pass
-        
         return word
     
-    def _to_passive(self, sentence):
-        """Convert active to passive voice"""
+    def _convert_to_passive(self, sentence):
+        """ACTIVE → PASSIVE voice conversion"""
         words = sentence.split()
         if len(words) < 4:
             return sentence
         
-        # Find verb patterns
+        # Try to find subject-verb-object pattern
         for i in range(len(words) - 2):
-            # Pattern: subject + verb + object
-            if words[i] in ['the', 'a', 'an', 'it', 'they', 'we'] and words[i+1] in ['is', 'are', 'was', 'were', 'have', 'has', 'had']:
-                continue
-            
-            # Simple passive conversion
-            if i+2 < len(words):
-                subject = ' '.join(words[:i+1])
-                verb = words[i+1]
-                obj = ' '.join(words[i+2:])
-                
-                # Remove 's' from verb if present
-                if verb.endswith('s'):
-                    verb = verb[:-1]
-                
-                # Create passive voice
-                passive = f"{obj} is {verb}ed by {subject}"
-                if len(passive.split()) > 3:
-                    return passive
+            # Common subject indicators
+            if words[i].lower() in ['the', 'a', 'an', 'it', 'they', 'we', 'he', 'she']:
+                # Check if next word is a verb (ends with s or ed)
+                if words[i+1].endswith('s') or words[i+1].endswith('ed'):
+                    subject = ' '.join(words[:i+1])
+                    verb = words[i+1]
+                    obj = ' '.join(words[i+2:])
+                    
+                    # Create passive voice: "Object is verb-ed by Subject"
+                    if verb.endswith('s'):
+                        verb = verb[:-1] + 'ed'  # makes -> made
+                    elif verb.endswith('ed'):
+                        verb = verb
+                    else:
+                        verb = verb + 'ed'
+                    
+                    # Clean up the object (remove the from object if present)
+                    obj_words = obj.split()
+                    if obj_words and obj_words[0].lower() == 'the':
+                        obj = ' '.join(obj_words[1:])
+                    
+                    passive = f"{obj} is {verb} by {subject}"
+                    # If the result is reasonable, return it
+                    if len(passive.split()) > 3 and len(passive) < len(sentence) * 1.5:
+                        return passive
         
         return sentence
     
-    def _to_active(self, sentence):
-        """Convert passive to active voice"""
-        if 'by' in sentence and (' is ' in sentence or ' are ' in sentence or ' was ' in sentence or ' were ' in sentence):
+    def _convert_to_active(self, sentence):
+        """PASSIVE → ACTIVE voice conversion"""
+        if 'by' in sentence.lower() and (' is ' in sentence or ' are ' in sentence or ' was ' in sentence or ' were ' in sentence):
             parts = sentence.split(' by ')
             if len(parts) == 2:
-                subject = parts[1]
-                obj_verb = parts[0]
-                # Remove auxiliary verb
+                subject = parts[1].strip()
+                obj_verb = parts[0].strip()
+                
+                # Remove the 'is/are/was/were'
                 for aux in [' is ', ' are ', ' was ', ' were ']:
                     if aux in obj_verb:
                         obj_verb = obj_verb.replace(aux, ' ')
                         verb_parts = obj_verb.split()
-                        if verb_parts:
-                            verb = verb_parts[0]
-                            obj = ' '.join(verb_parts[1:])
-                            active = f"{subject} {verb} {obj}"
-                            if len(active.split()) > 3:
-                                return active
+                        if len(verb_parts) > 0:
+                            verb = verb_parts[0].strip()
+                            # Remove 'ed' from verb if present
+                            if verb.endswith('ed'):
+                                verb = verb[:-2]
+                            obj = ' '.join(verb_parts[1:]) if len(verb_parts) > 1 else ''
+                            
+                            if obj:
+                                active = f"{subject} {verb} {obj}"
+                                if len(active.split()) > 3:
+                                    return active
+        
         return sentence
     
-    def _add_transition(self, sentence, pos):
-        """Add transitional phrases naturally"""
-        transitions = {
-            'addition': ['Furthermore,', 'Moreover,', 'In addition,', 'Additionally,'],
-            'contrast': ['However,', 'Nevertheless,', 'On the other hand,', 'Conversely,'],
-            'cause': ['Therefore,', 'Thus,', 'Consequently,', 'As a result,'],
-            'example': ['For example,', 'For instance,', 'Such as,', 'Namely,']
-        }
+    def _split_join_sentences(self, sentences):
+        """Intelligently split or combine sentences"""
+        if len(sentences) < 2:
+            return sentences
         
-        if pos == 'addition':
-            return random.choice(transitions['addition']) + ' ' + sentence[0].lower() + sentence[1:]
-        elif pos == 'contrast':
-            return random.choice(transitions['contrast']) + ' ' + sentence[0].lower() + sentence[1:]
-        elif pos == 'cause':
-            return random.choice(transitions['cause']) + ' ' + sentence[0].lower() + sentence[1:]
-        else:
-            return sentence
+        new_sentences = []
+        i = 0
+        while i < len(sentences):
+            # If sentence is long (>15 words), split it
+            if len(sentences[i].split()) > 15 and random.random() < 0.4:
+                words = sentences[i].split()
+                mid = len(words) // 2
+                # Find a natural split point
+                split_at = mid
+                for j in range(mid, min(mid + 5, len(words) - 1)):
+                    if words[j] in ['and', 'but', 'or', 'however', 'therefore']:
+                        split_at = j
+                        break
+                
+                if split_at < len(words) - 1:
+                    part1 = ' '.join(words[:split_at])
+                    part2 = ' '.join(words[split_at:])
+                    new_sentences.append(part1)
+                    new_sentences.append(part2)
+                    i += 1
+                    continue
+            
+            # If sentence is short (<5 words) and next exists, combine
+            elif len(sentences[i].split()) < 5 and i < len(sentences) - 1 and random.random() < 0.3:
+                combined = sentences[i] + ' and ' + sentences[i+1].lower()
+                new_sentences.append(combined)
+                i += 2
+                continue
+            
+            new_sentences.append(sentences[i])
+            i += 1
+        
+        return new_sentences
     
-    def _restructure_sentence(self, sentence):
-        """Apply multiple restructuring techniques"""
-        techniques = [
-            self._to_passive,
-            self._to_active,
-            lambda s: self._add_transition(s, 'addition') if len(s.split()) > 5 else s,
-            lambda s: self._add_transition(s, 'contrast') if len(s.split()) > 5 else s,
-            lambda s: self._add_transition(s, 'cause') if len(s.split()) > 5 else s
-        ]
-        
-        # Apply 1-2 techniques
-        for _ in range(random.randint(1, 2)):
-            technique = random.choice(techniques)
-            new_sentence = technique(sentence)
-            if new_sentence != sentence and len(new_sentence) > 5:
-                sentence = new_sentence
-        
+    def _add_voice_variation(self, sentence):
+        """Randomly apply active/passive conversion"""
+        # 40% chance of voice conversion
+        if random.random() < 0.40:
+            # Check if sentence is passive -> convert to active
+            if 'by' in sentence and ('is' in sentence or 'are' in sentence or 'was' in sentence or 'were' in sentence):
+                return self._convert_to_active(sentence)
+            # Otherwise convert to passive
+            else:
+                return self._convert_to_passive(sentence)
         return sentence
     
     def humanize(self, text, style="natural"):
-        """Advanced humanization pipeline"""
+        """Advanced humanization with real restructuring"""
         if not text or len(text) < 5:
             return text
         
         try:
             # Step 1: Split into sentences
             sentences = re.split(r'(?<=[.!?])\s+', text)
-            new_sentences = []
             
-            for i, sentence in enumerate(sentences):
-                # Step 2: Apply synonyms to content words
+            # Step 2: Split/combine sentences
+            sentences = self._split_join_sentences(sentences)
+            
+            # Step 3: Process each sentence
+            new_sentences = []
+            for sentence in sentences:
+                # Apply synonyms
                 words = sentence.split()
                 new_words = []
-                
                 for word in words:
                     clean = word.strip(string.punctuation)
                     if clean and len(clean) > 3:
-                        # 35% chance of synonym replacement
-                        if random.random() < 0.35:
+                        if random.random() < 0.30:
                             syn = self._get_synonym(clean)
                             if syn != clean:
                                 if word[0].isupper():
@@ -199,37 +224,51 @@ class StealthHumanizer:
                 
                 new_sentence = ' '.join(new_words)
                 
-                # Step 3: Restructure sentence (active/passive, transitions)
+                # Apply voice conversion
                 if len(new_sentence.split()) > 5:
-                    new_sentence = self._restructure_sentence(new_sentence)
+                    new_sentence = self._add_voice_variation(new_sentence)
                 
-                # Step 4: Add contractions
+                # Apply contractions
                 for formal, casual in self.contractions.items():
-                    if random.random() < 0.20:
+                    if random.random() < 0.25:
                         new_sentence = new_sentence.replace(formal, casual)
                 
                 new_sentences.append(new_sentence)
             
-            # Step 5: Add fillers to 1-2 sentences
+            # Step 4: Add transitions and fillers
             if style != "professional" and len(new_sentences) > 2:
+                transitions = [
+                    ('However,', 0.3), ('Therefore,', 0.2), 
+                    ('Furthermore,', 0.2), ('Moreover,', 0.15), 
+                    ('On the other hand,', 0.15)
+                ]
+                
+                for i in range(1, len(new_sentences)):
+                    if len(new_sentences[i].split()) > 6:
+                        if random.random() < 0.25:
+                            transition, _ = random.choice(transitions)
+                            new_sentences[i] = transition + ' ' + new_sentences[i][0].lower() + new_sentences[i][1:]
+                
+                # Add fillers
                 for _ in range(random.randint(1, 2)):
                     idx = random.randint(1, len(new_sentences) - 1)
                     if len(new_sentences[idx].split()) > 8:
                         filler = random.choice(self.fillers)
                         words = new_sentences[idx].split()
                         insert_pos = random.randint(2, min(4, len(words) - 2))
-                        words.insert(insert_pos, f"{filler},")
+                        words.insert(insert_pos, filler + ',')
                         new_sentences[idx] = ' '.join(words)
             
-            # Step 6: Final cleanup
+            # Step 5: Final cleanup
             result = '. '.join(new_sentences)
             result = re.sub(r'\s+', ' ', result).strip()
             result = re.sub(r'\.{2,}', '.', result)
+            result = re.sub(r',\s*,', ',', result)
             
             if result and result[-1] not in '.!?':
                 result += '.'
             
-            # Step 7: Safety check - return original if something went wrong
+            # Safety check
             if not isinstance(result, str) or len(result) < 10:
                 return text
             
@@ -252,28 +291,15 @@ class StealthHumanizer:
         if len(words) == 0:
             return 50
         
-        # Contractions
         if any("'t" in word or "'m" in word for word in words):
             score += 10
-        
-        # Vocabulary diversity
         if len(set(words)) / len(words) > 0.5:
             score += 10
         
-        # Sentence variation
         sentences = [s for s in text.split(". ") if s]
         if len(sentences) > 1:
             lengths = [len(s.split()) for s in sentences]
             if max(lengths) - min(lengths) > 8:
                 score += 10
-        
-        # Fillers
-        if any(f in text.lower() for f in self.fillers):
-            score += 5
-        
-        # Transitions
-        transitions = ['furthermore', 'moreover', 'however', 'therefore', 'consequently']
-        if any(t in text.lower() for t in transitions):
-            score += 5
         
         return min(score, 99)
