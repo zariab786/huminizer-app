@@ -20,17 +20,18 @@ class StealthHumanizer:
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
         print("✅ Models loaded!")
         
-        # Filler words - carefully curated
+        # Expanded fillers - used sparingly
         self.fillers = [
             "actually", "basically", "honestly", "you know", 
             "well", "so", "like", "literally", "seriously",
             "in my opinion", "to be honest", "I mean"
         ]
         
-        # Only use these fillers at sentence boundaries
+        # Sentence starters - only used at sentence boundaries
         self.sentence_starters = [
             "In fact", "Interestingly", "Notably", 
-            "It is worth noting that", "Importantly"
+            "It is worth noting that", "Importantly",
+            "In particular", "For example"
         ]
         
         # Contractions
@@ -43,7 +44,7 @@ class StealthHumanizer:
             "should not": "shouldn't", "could not": "couldn't", "does not": "doesn't"
         }
         
-        # Stop words - don't replace these
+        # Stop words - never replace these
         self.stop_words = {
             'the', 'a', 'an', 'and', 'or', 'but', 'for', 'nor', 'on', 'at', 
             'to', 'by', 'in', 'of', 'with', 'without', 'via', 'per', 'as',
@@ -51,7 +52,8 @@ class StealthHumanizer:
             'us', 'them', 'my', 'your', 'his', 'her', 'our', 'their', 'its',
             'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have',
             'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
-            'may', 'might', 'must', 'shall', 'can'
+            'may', 'might', 'must', 'shall', 'can', 'that', 'which', 'who',
+            'whom', 'whose', 'what', 'when', 'where', 'why', 'how'
         }
     
     def _get_synonyms(self, word, max_synonyms=2):
@@ -78,11 +80,14 @@ class StealthHumanizer:
             # Filter out stop words
             synonyms = [s for s in synonyms if s not in self.stop_words]
             
+            # Filter out extremely rare words (more than 3 chars difference)
+            synonyms = [s for s in synonyms if abs(len(s) - len(word)) <= 2]
+            
             return list(synonyms)[:max_synonyms] if synonyms else []
         except:
             return []
     
-    def _replace_with_synonym(self, word, pos):
+    def _replace_with_synonym(self, word):
         """Replace a word with a synonym - only for content words"""
         # Skip stop words
         if word.lower() in self.stop_words:
@@ -92,8 +97,8 @@ class StealthHumanizer:
         if len(word) < 4:
             return word
         
-        # Only replace 15-20% of content words
-        if random.random() > 0.20:
+        # Only replace 15% of content words
+        if random.random() > 0.15:
             return word
         
         synonyms = self._get_synonyms(word, max_synonyms=2)
@@ -111,44 +116,98 @@ class StealthHumanizer:
         return word
     
     def humanize(self, text, style="natural"):
-        """Main humanization pipeline - V3.1 Context-Aware"""
+        """Main humanization pipeline - V3.2 Bulletproof"""
+        # Safety check - ensure text is a string
         if not text or len(text) < 5:
-            return text
+            return str(text) if text else ""
         
         try:
-            # Step 1: Paraphrase (lighter touch)
-            paraphrased = self._paraphrase(text)
+            # Step 1: Paraphrase (with fallback)
+            try:
+                paraphrased = self._paraphrase(text)
+                if not paraphrased or len(paraphrased) < 10:
+                    paraphrased = text
+            except Exception as e:
+                print(f"⚠️ Paraphrase failed, using original: {e}")
+                paraphrased = text
+            
+            # Ensure paraphrased is a string
+            if not isinstance(paraphrased, str):
+                paraphrased = str(paraphrased)
             
             # Step 2: Apply synonyms selectively
-            synonymized = self._apply_synonyms_selectively(paraphrased)
+            try:
+                synonymized = self._apply_synonyms_selectively(paraphrased)
+                if not synonymized:
+                    synonymized = paraphrased
+            except Exception as e:
+                print(f"⚠️ Synonym application failed: {e}")
+                synonymized = paraphrased
             
-            # Step 3: Add contractions (not fillers)
-            contracted = self._add_contractions(synonymized)
+            # Ensure synonymized is a string
+            if not isinstance(synonymized, str):
+                synonymized = str(synonymized)
             
-            # Step 4: Add sentence starters (not random fillers)
-            final = self._add_sentence_starters(contracted, style)
+            # Step 3: Add contractions
+            try:
+                contracted = self._add_contractions(synonymized)
+                if not contracted:
+                    contracted = synonymized
+            except Exception as e:
+                print(f"⚠️ Contraction addition failed: {e}")
+                contracted = synonymized
             
-            # Step 5: Anti-detection
+            # Ensure contracted is a string
+            if not isinstance(contracted, str):
+                contracted = str(contracted)
+            
+            # Step 4: Add sentence starters (only if not professional)
+            try:
+                if style != "professional":
+                    final = self._add_sentence_starters(contracted, style)
+                else:
+                    final = contracted
+                if not final:
+                    final = contracted
+            except Exception as e:
+                print(f"⚠️ Sentence starter addition failed: {e}")
+                final = contracted
+            
+            # Ensure final is a string
+            if not isinstance(final, str):
+                final = str(final)
+            
+            # Step 5: Final cleanup
             final = self._stealth_layer(final)
             
-            if final is None or final == "":
-                return text
-            final_str = str(final)
-            if final_str.lower() in ["true", "false", "none"]:
+            # Ensure final is a string and not "True" or "False"
+            if not isinstance(final, str):
+                final = str(final)
+            
+            # If it's "True" or "False", return original text
+            if final.lower() in ["true", "false", "none"]:
                 return text
             
-            return final_str
+            # If it's empty or too short, return original
+            if len(final.strip()) < 5:
+                return text
+            
+            return final
+            
         except Exception as e:
-            print(f"⚠️ Error: {e}")
+            print(f"⚠️ Critical error in humanize: {e}")
+            # Always return the original text as fallback
             return text
     
     def _paraphrase(self, text):
         """Paraphrase with moderate changes"""
-        if not text or len(text) < 10:
-            return text
         try:
+            if not text or len(text) < 10:
+                return text
+            
             if len(text) > 500:
                 text = text[:500]
+            
             inputs = self.tokenizer(
                 f"paraphrase: {text}", 
                 return_tensors="pt", 
@@ -156,6 +215,7 @@ class StealthHumanizer:
                 truncation=True,
                 padding=True
             )
+            
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
@@ -168,12 +228,23 @@ class StealthHumanizer:
                     repetition_penalty=1.1,
                     no_repeat_ngram_size=3
                 )
+            
             result = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            if result:
-                result = result.replace("paraphrase: ", "")
-                if result and len(result) > 1:
-                    result = result[0].upper() + result[1:]
-            return result if result and len(result) > 5 else text
+            
+            if not result:
+                return text
+            
+            # Clean up
+            result = result.replace("paraphrase: ", "")
+            if result and len(result) > 1:
+                result = result[0].upper() + result[1:]
+            
+            # If result is too short or same as input, return original
+            if len(result) < 10 or result.strip() == text.strip():
+                return text
+            
+            return result
+            
         except Exception as e:
             print(f"⚠️ Paraphrase error: {e}")
             return text
@@ -184,11 +255,14 @@ class StealthHumanizer:
             return text
         
         words = text.split()
+        if not words:
+            return text
+        
         for i in range(len(words)):
             clean_word = words[i].strip('.,!?;:()')
             if clean_word and len(clean_word) > 3:
-                replacement = self._replace_with_synonym(clean_word, i)
-                if replacement != clean_word:
+                replacement = self._replace_with_synonym(clean_word)
+                if replacement != clean_word and replacement:
                     # Preserve capitalization
                     if clean_word[0].isupper():
                         replacement = replacement.capitalize()
@@ -198,11 +272,15 @@ class StealthHumanizer:
     
     def _add_contractions(self, text):
         """Add contractions only where they make sense"""
+        if not text:
+            return text
+        
         result = text
         for formal, casual in self.contractions.items():
-            # Only replace 40% of occurrences
-            if random.random() > 0.6:
+            # Only replace 30% of occurrences
+            if random.random() > 0.7:
                 result = result.replace(formal, casual)
+        
         return result
     
     def _add_sentence_starters(self, text, style):
@@ -214,8 +292,11 @@ class StealthHumanizer:
         if len(sentences) <= 2:
             return text
         
-        # Add starters to 2-3 sentences
-        starter_count = min(random.randint(1, 3), len(sentences) - 1)
+        # Add starters to 1-2 sentences
+        starter_count = min(random.randint(1, 2), len(sentences) - 1)
+        if starter_count <= 0:
+            return text
+        
         indices = random.sample(range(1, len(sentences)), starter_count)
         
         for idx in indices:
@@ -224,7 +305,7 @@ class StealthHumanizer:
                 continue
                 
             starter = random.choice(self.sentence_starters)
-            sentences[idx] = f"{starter}, {sentences[idx].lower()}"
+            sentences[idx] = f"{starter}, {sentences[idx][0].lower() + sentences[idx][1:]}"
         
         return '. '.join(sentences)
     
@@ -232,6 +313,7 @@ class StealthHumanizer:
         """Final anti-detection processing - light touch"""
         if not text:
             return text
+        
         result = text
         
         # Remove common AI patterns
@@ -266,12 +348,12 @@ class StealthHumanizer:
         
         # Vocabulary diversity
         unique_words = len(set(words))
-        if unique_words / len(words) > 0.5:
+        if len(words) > 0 and unique_words / len(words) > 0.5:
             score += 8
         
         # Sentence length variation
         sentences = [s for s in text.split(". ") if s]
-        if sentences:
+        if sentences and len(sentences) > 1:
             lengths = [len(s.split()) for s in sentences]
             if max(lengths) - min(lengths) > 8:
                 score += 7
